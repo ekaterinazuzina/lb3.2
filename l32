@@ -1,20 +1,20 @@
-import pandas as pd
-import numpy as np
+# -*- coding: utf-8 -*-
 import torch
 import torch.nn as nn
+import matplotlib.pyplot as plt
+import time
 
-# Загрузка и подготовка данных
-df = pd.read_csv('data.csv')
-
-# Признаки и метки
-X = torch.tensor(df.iloc[:, :4].values, dtype=torch.float32)
-y = torch.tensor(np.where(df.iloc[:, 4] == "Iris-setosa", 1, -1), dtype=torch.float32).view(-1, 1)
+# Генерация синтетических данных
+# 150 примеров, 4 признака
+X = torch.randn(150, 4, dtype=torch.float32)
+# 150 меток 0 или 1
+y = torch.randint(0, 2, (150, 1), dtype=torch.float32)
 
 # Линейная модель
 model = nn.Linear(4, 1)
 
 print('Начальные веса: ', model.weight.data)
-print('Начальный сдвиг (bias): ', model.bias.data)
+print('Начальный bias: ', model.bias.data)
 
 # Функция потерь и оптимизатор
 criterion = nn.MSELoss()
@@ -22,32 +22,48 @@ optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
 
 # Обучение
 iteration = 1
+save_loss = []
+start_time = time.time()
 while True:
     pred = model(X)
     loss = criterion(pred, y)
+    save_loss.append(loss.item())
     print(f'Ошибка на {iteration} итерации: {loss.item():.4f}')
-    
-    optimizer.zero_grad()  # Обнуляем градиенты перед backward
+
+    optimizer.zero_grad()
     loss.backward()
     optimizer.step()
-    
+
     iteration += 1
-    if loss.item() < 1:
+    # Условие останова: loss < 1 или после 1000 итераций
+    if loss.item() < 1 or iteration > 1000:
         break
 
-# Определяем порог разделения
-min_val, max_val = pred.min().item(), pred.max().item()
-threshold = (min_val + max_val) / 2
+print(f'Время обучения: {time.time() - start_time:.2f} сек')
 
-# Интерфейс для ввода данных пользователем
-print("\nВведите четыре параметра цветка, чтобы определить его вид.")
+# График изменения loss
+plt.figure()
+plt.plot(save_loss)
+plt.title('Training Loss')
+plt.xlabel('Итерация')
+plt.ylabel('Loss')
+plt.show()
+
+# Простой интерфейс предсказаний
+threshold = 0.5  # порог для бинарной классификации
+print("\nВведите четыре признака (через пробел), чтобы получить предсказание:")
 while True:
+    s = input(">>> ")
+    if not s:
+        break
     try:
-        inputs = [float(input(f"Введите признак {i+1}: ")) for i in range(4)]
-        z = torch.tensor(inputs, dtype=torch.float32)
+        vals = list(map(float, s.split()))
+        if len(vals) != 4:
+            raise ValueError
+        z = torch.tensor(vals, dtype=torch.float32)
         with torch.no_grad():
-            output = model(z)
-        print("\nВид цветка: ", "Iris-setosa" if output.item() >= threshold else "Iris-versicolor")
+            out = model(z)
+        pred_label = 1 if out.item() >= threshold else 0
+        print("Предсказанная метка:", pred_label, "\n")
     except ValueError:
-        print("Ошибка ввода. Пожалуйста, введите числовые значения.")
-    print()
+        print("Пожалуйста, введите ровно четыре числовых значения.\n")
